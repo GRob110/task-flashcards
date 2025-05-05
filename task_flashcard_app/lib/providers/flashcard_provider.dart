@@ -3,82 +3,100 @@ import '../models/flashcard.dart';
 import '../services/db_service.dart';
 
 class FlashcardProvider extends ChangeNotifier {
-  final DBService _dbService = DBService.instance;
+  final DBService _db = DBService.instance;
 
   List<Flashcard> _flashcards = [];
   List<Flashcard> get flashcards => _flashcards;
 
-  /// Map of cardId → rolling average rating
+  // rolling average rating per card
   final Map<int, double> _averageRating = {};
+  // track which cards have been completed or skipped today
+  final Set<int> _completedToday = {};
+  final Set<int> _skippedToday   = {};
 
-  /// Today's review order: worst (lowest avg) first
-  List<Flashcard> get todaysFlashcards {
-    final list = List<Flashcard>.from(_flashcards);
-    list.sort((a, b) {
-      final aAvg = _averageRating[a.id!] ?? 1.0;
-      final bAvg = _averageRating[b.id!] ?? 1.0;
-      return aAvg.compareTo(bAvg);
-    });
-    return list;
-  }
-
-  /// Load cards and compute averages (default 30-day window)
+  /// Call this on app start (or pull-to-refresh) to load everything.
   Future<void> loadFlashcards({int windowDays = 30}) async {
-    _flashcards = await _dbService.getFlashcards();
-    await _loadAverageRatings(windowDays: windowDays);
+    _flashcards = await _db.getFlashcards();
+    await _computeAverages(windowDays: windowDays);
+    await _loadTodayCompleted();
+    _skippedToday.clear();
     notifyListeners();
   }
 
-  /// Compute the average rating for each card over the past [windowDays]
-  Future<void> _loadAverageRatings({required int windowDays}) async {
+  /// Compute each card’s rolling average over the past [windowDays].
+  Future<void> _computeAverages({required int windowDays}) async {
     _averageRating.clear();
     final since = DateTime.now().subtract(Duration(days: windowDays));
     for (var card in _flashcards) {
-      final performances = await _dbService.getPerformances(
-        card.id!,
-        since: since,
-      );
-      if (performances.isNotEmpty) {
-        final sum = performances.fold<int>(0, (sum, p) => sum + p.rating);
-        _averageRating[card.id!] = sum / performances.length;
+      final history = await _db.getPerformances(card.id!, since: since);
+      if (history.isNotEmpty) {
+        final sum = history.fold<int>(0, (s, p) => s + p.rating);
+        _averageRating[card.id!] = sum / history.length;
       } else {
-        // No history → neutral average
-        _averageRating[card.id!] = 1.0;
+        _averageRating[card.id!] = 1.0; // neutral
       }
     }
   }
 
-  /// Add a new flashcard
-  Future<void> addFlashcard(String text) async {
-    await _dbService.insertFlashcard(Flashcard(text: text));
-    await loadFlashcards();
+  /// Find which cards already have a rating _today_.
+  Future<void> _loadTodayCompleted() async {
+    _completedToday.clear();
+    final startOfDay = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+    for (var card in _flashcards) {
+      final today = await _db.getPerformances(card.id!, since: startOfDay);
+      if (today.isNotEmpty) _completedToday.add(card.id!);
+    }
   }
 
-  /// Update an existing flashcard
-  Future<void> updateFlashcard(Flashcard card) async {
-    await _dbService.updateFlashcard(card);
-    await loadFlashcards();
+  /// Cards left to review: neither completed nor skipped today, sorted by worst avg first.
+  List<Flashcard> get todaysFlashcards {
+    final remain = _flashcards.where((c) =>
+      !_completedToday.contains(c.id) &&
+      !_skippedToday.contains(c.id)
+    ).toList();
+    remain.sort((a, b) {
+      return (_averageRating[a.id!] ?? 1.0)
+        .compareTo(_averageRating[b.id!] ?? 1.0);
+    });
+    return remain;
   }
 
-  /// Delete a flashcard
-  Future<void> deleteFlashcard(int id) async {
-    await _dbService.deleteFlashcard(id);
-    await loadFlashcards();
-  }
-
-  /// Record performance and recompute averages
+  /// Record a real rating (0,1,2), mark completed, recompute averages.
   Future<void> recordPerformance(int cardId, int rating) async {
-    await _dbService.recordPerformance(cardId, DateTime.now(), rating);
-    // recompute all averages; you could optimize to just one card if needed
-    await _loadAverageRatings(windowDays: 30);
+    await _db.recordPerformance(cardId, DateTime.now(), rating);
+    _completedToday.add(cardId);
+    await _computeAverages(windowDays: 30);
     notifyListeners();
   }
 
-  /// Get heatmap data for a card over the past year
-  Future<Map<DateTime, int>> getYearlyData(int cardId) async {
+  /// Skip a card (no DB write), so it won’t reappear until you reload tomorrow.
+  void skipCard(int cardId) {
+    _skippedToday.add(cardId);
+    notifyListeners();
+  }
+
+  /// Standard CRUD for flashcards.
+  Future<void> addFlashcard(String text) async {
+    await _db.insertFlashcard(Flashcard(text: text));
+    await loadFlashcards();
+  }
+  Future<void> updateFlashcard(Flashcard card) async {
+    await _db.updateFlashcard(card);
+    await loadFlashcards();
+  }
+  Future<void> deleteFlashcard(int id) async {
+    await _db.deleteFlashcard(id);
+    await loadFlashcards();
+  }
+
+  /// Heatmap data: map of DateTime→rating for the past year.
+  Future<Map<DateTime,int>> getYearlyData(int cardId) async {
     final since = DateTime.now().subtract(const Duration(days: 365));
-    final performances =
-        await _dbService.getPerformances(cardId, since: since);
-    return { for (var p in performances) p.date: p.rating };
+    final list = await _db.getPerformances(cardId, since: since);
+    return { for (var p in list) p.date: p.rating };
   }
 }

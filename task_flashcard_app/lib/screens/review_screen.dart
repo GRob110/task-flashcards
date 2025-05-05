@@ -1,5 +1,3 @@
-// lib/screens/review_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:provider/provider.dart';
@@ -7,13 +5,13 @@ import '../providers/flashcard_provider.dart';
 
 class ReviewScreen extends StatefulWidget {
   const ReviewScreen({super.key});
-
   @override
   State<ReviewScreen> createState() => _ReviewScreenState();
 }
 
 class _ReviewScreenState extends State<ReviewScreen> {
   final CardSwiperController _controller = CardSwiperController();
+  int _currentIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +23,11 @@ class _ReviewScreenState extends State<ReviewScreen> {
         title: const Text('Daily Review'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.list),
+            tooltip: 'See all cards',
+            onPressed: () => Navigator.pushNamed(context, '/all'),
+          ),
+          IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () => Navigator.pushNamed(context, '/manage'),
           ),
@@ -35,55 +38,68 @@ class _ReviewScreenState extends State<ReviewScreen> {
         ],
       ),
       body: cards.isEmpty
-          ? const Center(child: Text('No flashcards yet. Add some!'))
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: CardSwiper(
-                controller: _controller,
-                cardsCount: cards.length,
-                // REQUIRED: build each card
-                cardBuilder: (context, index, horizontalThreshold, verticalThreshold) {
-                  final card = cards[index];
-                  return Card(
-                    elevation: 4,
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          card.text,
-                          style: const TextStyle(fontSize: 24),
-                          textAlign: TextAlign.center,
+        ? const Center(child: Text('No cards left to review today!'))
+        : Column(
+            children: [
+              Expanded(
+                child: CardSwiper(
+                  controller: _controller,
+                  cardsCount: cards.length,
+                  numberOfCardsDisplayed: 3,
+                  padding: const EdgeInsets.all(16),
+                  cardBuilder: (ctx, index, h, v) {
+                    final card = cards[index];
+                    return Card(
+                      elevation: 4,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            card.text,
+                            style: const TextStyle(fontSize: 22),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
-                // OPTIONAL: adjust how many cards are stacked, padding, etc.
-                numberOfCardsDisplayed: 3,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
-                // REQUIRED: handle each swipe and return true to accept it
-                onSwipe: (
-                  int previousIndex,
-                  int? currentIndex,
-                  CardSwiperDirection direction,
-                ) {
-                  final swipedCard = cards[previousIndex];
-                  int rating;
-                  switch (direction) {
-                    case CardSwiperDirection.left:
-                      rating = 0;   // fail
-                      break;
-                    case CardSwiperDirection.right:
-                      rating = 2;   // success
-                      break;
-                    default:
-                      rating = 1;   // ok (up/down)
-                  }
-                  provider.recordPerformance(swipedCard.id!, rating);
-                  return true;
-                },
+                    );
+                  },
+                  onSwipe: (prev, curr, direction) {
+                    // record fail / ok / success
+                    final id = cards[prev].id!;
+                    int rating;
+                    switch (direction) {
+                      case CardSwiperDirection.left:
+                        rating = 0; break;
+                      case CardSwiperDirection.right:
+                        rating = 2; break;
+                      default:
+                        rating = 1; break;
+                    }
+                    provider.recordPerformance(id, rating);
+                    // update the “current” index for Skip button
+                    setState(() {
+                      _currentIndex = curr ?? _currentIndex;
+                    });
+                    return true;
+                  },
+                ),
               ),
-            ),
+
+              // Skip button
+              Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final id = cards[_currentIndex].id!;
+                    provider.skipCard(id);
+                    // no DB write for skip
+                  },
+                  icon: const Icon(Icons.skip_next),
+                  label: const Text('Skip'),
+                ),
+              ),
+            ],
+          ),
     );
   }
 }
