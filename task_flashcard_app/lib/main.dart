@@ -5,6 +5,7 @@ import 'providers/flashcard_provider.dart';
 import 'screens/review_screen.dart';
 import 'screens/manage_screen.dart';
 import 'screens/heatmap_screen.dart';
+import 'screens/card_list_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +40,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/manage': (_) => const ManageScreen(),
         '/heatmap': (_) => const HeatmapScreen(),
+        '/all': (_) => const CardListScreen(),
       },
     );
   }

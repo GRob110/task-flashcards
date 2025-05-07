@@ -85,6 +85,7 @@ class ManageScreen extends StatelessWidget {
                     );
                   },
                   child: ListTile(
+                    tileColor: provider.getCardColor(provider.getEmaForCard(card.id!)),
                     title: Text(card.text),
                     onTap: () => _showAddEditDialog(context, card: card),
                     trailing: provider.completedToday.contains(card.id)

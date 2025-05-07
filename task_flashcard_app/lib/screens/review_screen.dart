@@ -49,7 +49,10 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   padding: const EdgeInsets.all(16),
                   cardBuilder: (ctx, index, h, v) {
                     final card = cards[index];
+                    final ema = provider.getEmaForCard(card.id!);
+                    final cardColor = provider.getCardColor(ema);
                     return Card(
+                      color: cardColor,
                       elevation: 4,
                       child: Center(
                         child: Padding(

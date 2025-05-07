@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import '../models/flashcard.dart';
 import '../services/db_service.dart';
+import 'package:flutter/painting.dart';
+import 'package:flutter/material.dart';
 
 class FlashcardProvider extends ChangeNotifier {
   final DBService _db = DBService.instance;
@@ -10,6 +12,7 @@ class FlashcardProvider extends ChangeNotifier {
 
   // rolling average rating per card
   final Map<int, double> _averageRating = {};
+  final Map<int, double> _emaRating = {};
   // track which cards have been completed or skipped today
   final Set<int> _completedToday = {};
   Set<int> get completedToday => _completedToday;
@@ -24,17 +27,35 @@ class FlashcardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Compute each card's rolling average over the past [windowDays].
+  /// Compute each card's rolling average and EMA over the past [windowDays].
   Future<void> _computeAverages({required int windowDays}) async {
     _averageRating.clear();
+    _emaRating.clear();
     final since = DateTime.now().subtract(Duration(days: windowDays));
+    const double alpha = 0.5; // Smoothing factor for EMA (0.5 = recent counts more)
     for (var card in _flashcards) {
       final history = await _db.getPerformances(card.id!, since: since);
+      print('Card ${card.id}: history = \\${history.map((p) => p.rating).toList()}');
       if (history.isNotEmpty) {
+        // Simple average
         final sum = history.fold<int>(0, (s, p) => s + p.rating);
         _averageRating[card.id!] = sum / history.length;
+        // EMA (sorted by date)
+        final sortedHistory = [...history]..sort((a, b) => a.date.compareTo(b.date));
+        double? ema;
+        for (var p in sortedHistory) {
+          if (ema == null) {
+            ema = p.rating.toDouble();
+          } else {
+            ema = alpha * p.rating + (1 - alpha) * ema;
+          }
+        }
+        _emaRating[card.id!] = ema ?? 1.0;
+        print('Card ${card.id}: EMA = \\${_emaRating[card.id!]}');
       } else {
         _averageRating[card.id!] = 1.0; // neutral
+        _emaRating[card.id!] = 1.0;
+        print('Card ${card.id}: No history, EMA = 1.0');
       }
     }
   }
@@ -122,5 +143,19 @@ class FlashcardProvider extends ChangeNotifier {
   Future<int?> getTodayPerformanceRating(int cardId) async {
     final perf = await _db.getTodayPerformance(cardId);
     return perf?.rating;
+  }
+
+  /// Get EMA for a card
+  double getEmaForCard(int cardId) => _emaRating[cardId] ?? 1.0;
+
+  /// Get a gradient color from red (0) to yellow (1) to green (2) based on EMA
+  Color getCardColor(double ema) {
+    if (ema <= 1.0) {
+      // Red to yellow
+      return Color.lerp(Colors.red, Colors.yellow, ema)!;
+    } else {
+      // Yellow to green
+      return Color.lerp(Colors.yellow, Colors.green, ema - 1)!;
+    }
   }
 }

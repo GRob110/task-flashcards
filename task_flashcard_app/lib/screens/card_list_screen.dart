@@ -9,6 +9,7 @@ class CardListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cards = context.watch<FlashcardProvider>().flashcards;
+    final provider = context.watch<FlashcardProvider>();
     return Scaffold(
       appBar: AppBar(title: const Text('All Flashcards')),
       body: GridView.builder(
@@ -30,6 +31,7 @@ class CardListScreen extends StatelessWidget {
               ),
             ),
             child: Card(
+              color: provider.getCardColor(provider.getEmaForCard(c.id!)),
               elevation: 2,
               child: Center(
                 child: Padding(
