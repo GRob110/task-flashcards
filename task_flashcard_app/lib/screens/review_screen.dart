@@ -45,7 +45,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 child: CardSwiper(
                   controller: _controller,
                   cardsCount: cards.length,
-                  numberOfCardsDisplayed: 3,
+                  numberOfCardsDisplayed: cards.length,
                   padding: const EdgeInsets.all(16),
                   cardBuilder: (ctx, index, h, v) {
                     final card = cards[index];
@@ -64,8 +64,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     );
                   },
                   onSwipe: (prev, curr, direction) {
-                    // record fail / ok / success
-                    final id = cards[prev].id!;
+                    if (cards.isEmpty || prev == null || prev < 0 || prev >= cards.length) return true;
+                    final id = cards[prev].id;
+                    if (id == null) return true;
                     int rating;
                     switch (direction) {
                       case CardSwiperDirection.left:
@@ -76,9 +77,14 @@ class _ReviewScreenState extends State<ReviewScreen> {
                         rating = 1; break;
                     }
                     provider.recordPerformance(id, rating);
-                    // update the “current” index for Skip button
                     setState(() {
-                      _currentIndex = curr ?? _currentIndex;
+                      if (cards.isEmpty) {
+                        _currentIndex = 0;
+                      } else if (curr != null && curr >= 0 && curr < cards.length) {
+                        _currentIndex = curr;
+                      } else if (_currentIndex >= cards.length) {
+                        _currentIndex = cards.length - 1;
+                      }
                     });
                     return true;
                   },
@@ -90,9 +96,19 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 padding: const EdgeInsets.only(bottom: 24),
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    final id = cards[_currentIndex].id!;
-                    provider.skipCard(id);
-                    // no DB write for skip
+                    setState(() {
+                      if (cards.length <= 1) {
+                        // Only one card, do nothing
+                        return;
+                      }
+                      if (_currentIndex < cards.length - 1) {
+                        _currentIndex++;
+                        _controller.moveTo(_currentIndex);
+                      } else {
+                        _currentIndex = 0;
+                        _controller.moveTo(_currentIndex);
+                      }
+                    });
                   },
                   icon: const Icon(Icons.skip_next),
                   label: const Text('Skip'),

@@ -90,4 +90,69 @@ class DBService {
     );
     return maps.map((m) => Performance.fromMap(m)).toList();
   }
+
+  // NEW: Update today's performance for a card
+  Future<void> updateTodayPerformance(int cardId, int newRating) async {
+    final database = await db;
+    final startOfDay = DateTime.now();
+    final today = DateTime(startOfDay.year, startOfDay.month, startOfDay.day);
+    // Find today's performance
+    final maps = await database.query(
+      'performance',
+      where: 'cardId = ? AND date >= ?',
+      whereArgs: [cardId, today.toIso8601String()],
+      orderBy: 'date DESC',
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      final id = maps.first['id'] as int;
+      await database.update(
+        'performance',
+        {'rating': newRating},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+  }
+
+  // NEW: Delete today's performance for a card
+  Future<void> deleteTodayPerformance(int cardId) async {
+    final database = await db;
+    final startOfDay = DateTime.now();
+    final today = DateTime(startOfDay.year, startOfDay.month, startOfDay.day);
+    // Find today's performance
+    final maps = await database.query(
+      'performance',
+      where: 'cardId = ? AND date >= ?',
+      whereArgs: [cardId, today.toIso8601String()],
+      orderBy: 'date DESC',
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      final id = maps.first['id'] as int;
+      await database.delete(
+        'performance',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+  }
+
+  // Fetch today's performance for a card
+  Future<Performance?> getTodayPerformance(int cardId) async {
+    final database = await db;
+    final startOfDay = DateTime.now();
+    final today = DateTime(startOfDay.year, startOfDay.month, startOfDay.day);
+    final maps = await database.query(
+      'performance',
+      where: 'cardId = ? AND date >= ?',
+      whereArgs: [cardId, today.toIso8601String()],
+      orderBy: 'date DESC',
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return Performance.fromMap(maps.first);
+    }
+    return null;
+  }
 }

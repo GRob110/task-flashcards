@@ -12,6 +12,7 @@ class FlashcardProvider extends ChangeNotifier {
   final Map<int, double> _averageRating = {};
   // track which cards have been completed or skipped today
   final Set<int> _completedToday = {};
+  Set<int> get completedToday => _completedToday;
   final Set<int> _skippedToday   = {};
 
   /// Call this on app start (or pull-to-refresh) to load everything.
@@ -23,7 +24,7 @@ class FlashcardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Compute each card’s rolling average over the past [windowDays].
+  /// Compute each card's rolling average over the past [windowDays].
   Future<void> _computeAverages({required int windowDays}) async {
     _averageRating.clear();
     final since = DateTime.now().subtract(Duration(days: windowDays));
@@ -67,13 +68,14 @@ class FlashcardProvider extends ChangeNotifier {
 
   /// Record a real rating (0,1,2), mark completed, recompute averages.
   Future<void> recordPerformance(int cardId, int rating) async {
+    print('Recording performance: cardId=$cardId, rating=$rating');
     await _db.recordPerformance(cardId, DateTime.now(), rating);
     _completedToday.add(cardId);
     await _computeAverages(windowDays: 30);
     notifyListeners();
   }
 
-  /// Skip a card (no DB write), so it won’t reappear until you reload tomorrow.
+  /// Skip a card (no DB write), so it won't reappear until you reload tomorrow.
   void skipCard(int cardId) {
     _skippedToday.add(cardId);
     notifyListeners();
@@ -97,6 +99,28 @@ class FlashcardProvider extends ChangeNotifier {
   Future<Map<DateTime,int>> getYearlyData(int cardId) async {
     final since = DateTime.now().subtract(const Duration(days: 365));
     final list = await _db.getPerformances(cardId, since: since);
-    return { for (var p in list) p.date: p.rating };
+    final map = { for (var p in list) DateTime(p.date.year, p.date.month, p.date.day): p.rating };
+    print('Heatmap for card $cardId: $map');
+    return map;
+  }
+
+  /// Update today's performance for a card
+  Future<void> updateTodayPerformance(int cardId, int newRating) async {
+    await _db.updateTodayPerformance(cardId, newRating);
+    await loadFlashcards();
+    notifyListeners();
+  }
+
+  /// Delete today's performance for a card
+  Future<void> deleteTodayPerformance(int cardId) async {
+    await _db.deleteTodayPerformance(cardId);
+    await loadFlashcards();
+    notifyListeners();
+  }
+
+  /// Get today's performance for a card
+  Future<int?> getTodayPerformanceRating(int cardId) async {
+    final perf = await _db.getTodayPerformance(cardId);
+    return perf?.rating;
   }
 }
