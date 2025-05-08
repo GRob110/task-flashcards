@@ -40,14 +40,29 @@ class FlashcardProvider extends ChangeNotifier {
         // Simple average
         final sum = history.fold<int>(0, (s, p) => s + p.rating);
         _averageRating[card.id!] = sum / history.length;
-        // EMA (sorted by date)
+        // EMA (sorted by date, with decay for missing days)
         final sortedHistory = [...history]..sort((a, b) => a.date.compareTo(b.date));
         double? ema;
+        DateTime? prevDate;
         for (var p in sortedHistory) {
           if (ema == null) {
             ema = p.rating.toDouble();
           } else {
-            ema = alpha * p.rating + (1 - alpha) * ema;
+            // Insert virtual fails for each missing day
+            final daysGap = p.date.difference(prevDate!).inDays;
+            for (int i = 1; i < daysGap; i++) {
+              ema = alpha * 0 + (1 - alpha) * (ema ?? 1.0); // Decay for missing day
+            }
+            ema = alpha * p.rating + (1 - alpha) * (ema ?? 1.0);
+          }
+          prevDate = DateTime(p.date.year, p.date.month, p.date.day);
+        }
+        // Decay for days since last performance until today
+        final today = DateTime.now();
+        if (prevDate != null) {
+          final daysSince = today.difference(prevDate).inDays;
+          for (int i = 1; i <= daysSince; i++) {
+            ema = alpha * 0 + (1 - alpha) * (ema ?? 1.0);
           }
         }
         _emaRating[card.id!] = ema ?? 1.0;
@@ -81,8 +96,7 @@ class FlashcardProvider extends ChangeNotifier {
       !_skippedToday.contains(c.id)
     ).toList();
     remain.sort((a, b) {
-      return (_averageRating[a.id!] ?? 1.0)
-        .compareTo(_averageRating[b.id!] ?? 1.0);
+      return getAdjustedEmaForCard(a.id!).compareTo(getAdjustedEmaForCard(b.id!));
     });
     return remain;
   }
@@ -157,5 +171,23 @@ class FlashcardProvider extends ChangeNotifier {
       // Yellow to green
       return Color.lerp(Colors.yellow, Colors.green, ema - 1)!;
     }
+  }
+
+  // Helper to get adjusted EMA (reduce slightly if no history)
+  double getAdjustedEmaForCard(int cardId) {
+    final ema = getEmaForCard(cardId);
+    // If the card has no history, _emaRating[cardId] will be exactly 1.0 (our default)
+    // Reduce slightly for unrecorded cards
+    if ((_emaRating[cardId] ?? 1.0) == 1.0) {
+      return (ema - 0.1).clamp(0.0, 2.0);
+    }
+    return ema;
+  }
+
+  // Sort all flashcards by adjusted EMA (lowest first)
+  List<Flashcard> get sortedFlashcards {
+    final sorted = [..._flashcards];
+    sorted.sort((a, b) => getAdjustedEmaForCard(a.id!).compareTo(getAdjustedEmaForCard(b.id!)));
+    return sorted;
   }
 }

@@ -1,8 +1,8 @@
 // lib/screens/heatmap_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter_heatmap_calendar/flutter_heatmap_calendar.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_heatmap_calendar/flutter_heatmap_calendar.dart';
 import '../providers/flashcard_provider.dart';
 
 class HeatmapScreen extends StatefulWidget {
@@ -29,6 +29,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<FlashcardProvider>();
+    final theme = Theme.of(context);
     final cards = provider.flashcards;
 
     if (_loading) {
@@ -44,65 +45,91 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Performance Heatmap')),
       body: cards.isEmpty
-          ? const Center(child: Text('No flashcards to show heatmap.'))
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_circle_outline,
+                    size: 64,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No cards yet',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Add some cards to see their performance',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.primary.withOpacity(0.7),
+                    ),
+                  ),
+                ],
+              ),
+            )
           : RefreshIndicator(
               onRefresh: () async {
                 await provider.loadFlashcards();
               },
               child: ListView.builder(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(16),
                 itemCount: cards.length,
                 itemBuilder: (context, index) {
                   final card = cards[index];
-                  return FutureBuilder<Map<DateTime, int>>(
-                    future: provider.getYearlyData(card.id!),
-                    builder: (ctx, snap) {
-                      if (snap.connectionState != ConnectionState.done) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      final dataMap = snap.data ?? {};
-                      return Card(
-                        elevation: 2,
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                card.text,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                //height: 120, // Increased to prevent overflow
-                                child: HeatMap(
-                                  datasets: dataMap,
-                                  colorMode: ColorMode.color,
-                                  showText: false,
-                                  scrollable: true,
-                                  fontSize: 10,
-                                  size: 10,
-                                  startDate: startDate,
-                                  endDate: endDate,
-                                  showColorTip: false,
-                                  colorsets: const {
-                                    0: Colors.red,
-                                    1: Colors.orange,
-                                    2: Colors.green,
-                                  },
-                                ),
-                              ),
-                            ],
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            card.text,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      );
-                    },
+                        FutureBuilder<Map<DateTime, int>>(
+                          future: provider.getYearlyData(card.id!),
+                          builder: (ctx, snap) {
+                            if (snap.connectionState != ConnectionState.done) {
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+                            final dataMap = snap.data ?? {};
+                            return Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: HeatMap(
+                                datasets: dataMap,
+                                colorMode: ColorMode.color,
+                                showText: false,
+                                scrollable: true,
+                                fontSize: 10,
+                                size: 10,
+                                startDate: startDate,
+                                endDate: endDate,
+                                showColorTip: false,
+                                colorsets: const {
+                                  0: Colors.red,
+                                  1: Colors.orange,
+                                  2: Colors.green,
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),

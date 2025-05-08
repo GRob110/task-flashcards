@@ -8,159 +8,212 @@ import '../providers/flashcard_provider.dart';
 class ManageScreen extends StatelessWidget {
   const ManageScreen({super.key});
 
-  Future<void> _showAddEditDialog(
-    BuildContext context, {
-    Flashcard? card,
-  }) {
-    final isEditing = card != null;
-    final textCtrl = TextEditingController(text: card?.text ?? '');
-
-    return showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(isEditing ? 'Edit Flashcard' : 'Add Flashcard'),
-        content: TextField(
-          controller: textCtrl,
-          decoration: const InputDecoration(labelText: 'Card Text'),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final text = textCtrl.text.trim();
-              if (text.isNotEmpty) {
-                final provider = context.read<FlashcardProvider>();
-                if (isEditing) {
-                  provider.updateFlashcard(
-                    Flashcard(id: card.id, text: text),
-                  );
-                } else {
-                  provider.addFlashcard(text);
-                }
-                Navigator.pop(context);
-              }
-            },
-            child: Text(isEditing ? 'Save' : 'Add'),
-          ),
-        ],
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<FlashcardProvider>();
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Manage Cards'),
+      ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: provider.flashcards.length,
+        itemBuilder: (ctx, i) {
+          final card = provider.flashcards[i];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              tileColor: provider.getCardColor(provider.getEmaForCard(card.id!)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              title: Text(
+                card.text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.white),
+                    onPressed: () => _editCard(context, card),
+                    tooltip: "Edit card",
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.white),
+                    onPressed: () => _deleteCard(context, card),
+                    tooltip: "Delete card",
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.calendar_today, color: Colors.white),
+                    onPressed: () => _editTodayPerformance(context, card),
+                    tooltip: "Edit today's performance",
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _addCard(context),
+        child: const Icon(Icons.add),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<FlashcardProvider>();
-    final cards = provider.flashcards;
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Manage Flashcards')),
-      body: cards.isEmpty
-          ? const Center(child: Text('No flashcards. Tap + to add one.'))
-          : ListView.builder(
-              itemCount: cards.length,
-              itemBuilder: (ctx, i) {
-                final card = cards[i];
-                return Dismissible(
-                  key: ValueKey(card.id),
-                  background: Container(
-                    color: Colors.redAccent,
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.only(left: 16),
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  secondaryBackground: Container(
-                    color: Colors.redAccent,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 16),
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  onDismissed: (_) {
-                    provider.deleteFlashcard(card.id!);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Flashcard deleted')),
-                    );
-                  },
-                  child: ListTile(
-                    tileColor: provider.getCardColor(provider.getEmaForCard(card.id!)),
-                    title: Text(card.text),
-                    onTap: () => _showAddEditDialog(context, card: card),
-                    trailing: provider.completedToday.contains(card.id)
-                        ? IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue),
-                            tooltip: "Edit today's performance",
-                            onPressed: () async {
-                              int? currentRating = await provider.getTodayPerformanceRating(card.id!);
-                              String ratingText;
-                              if (currentRating == 0) {
-                                ratingText = 'Current: Fail';
-                              } else if (currentRating == 1) {
-                                ratingText = 'Current: OK';
-                              } else if (currentRating == 2) {
-                                ratingText = 'Current: Success';
-                              } else {
-                                ratingText = 'Current: Unknown';
-                              }
-                              final action = await showDialog<String>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text("Edit Today's Performance"),
-                                  content: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(ratingText, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 12),
-                                      const Text('Change or delete today\'s performance for this card:'),
-                                    ],
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(ctx, 'fail'),
-                                      child: const Text('Fail'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(ctx, 'ok'),
-                                      child: const Text('OK'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(ctx, 'success'),
-                                      child: const Text('Success'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(ctx, 'delete'),
-                                      child: const Text('Delete'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(ctx, null),
-                                      child: const Text('Cancel'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (action == 'fail') {
-                                await provider.updateTodayPerformance(card.id!, 0);
-                              } else if (action == 'ok') {
-                                await provider.updateTodayPerformance(card.id!, 1);
-                              } else if (action == 'success') {
-                                await provider.updateTodayPerformance(card.id!, 2);
-                              } else if (action == 'delete') {
-                                await provider.deleteTodayPerformance(card.id!);
-                              }
-                            },
-                          )
-                        : null,
-                  ),
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddEditDialog(context),
-        child: const Icon(Icons.add),
+  Future<void> _addCard(BuildContext context) async {
+    final text = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Card'),
+        content: TextField(
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Enter card text',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (value) => Navigator.pop(ctx, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final text = (ctx.widget as AlertDialog)
+                  .content as TextField;
+              Navigator.pop(ctx, text.controller?.text);
+            },
+            child: const Text('Add'),
+          ),
+        ],
       ),
     );
+    if (text != null && text.isNotEmpty) {
+      await context.read<FlashcardProvider>().addFlashcard(text);
+    }
+  }
+
+  Future<void> _editCard(BuildContext context, Flashcard card) async {
+    final text = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Card'),
+        content: TextField(
+          autofocus: true,
+          controller: TextEditingController(text: card.text),
+          decoration: const InputDecoration(
+            hintText: 'Enter card text',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (value) => Navigator.pop(ctx, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final text = (ctx.widget as AlertDialog)
+                  .content as TextField;
+              Navigator.pop(ctx, text.controller?.text);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (text != null && text.isNotEmpty) {
+      await context.read<FlashcardProvider>().updateFlashcard(
+        Flashcard(id: card.id, text: text),
+      );
+    }
+  }
+
+  Future<void> _deleteCard(BuildContext context, Flashcard card) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Card'),
+        content: const Text('Are you sure you want to delete this card?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await context.read<FlashcardProvider>().deleteFlashcard(card.id!);
+    }
+  }
+
+  Future<void> _editTodayPerformance(BuildContext context, Flashcard card) async {
+    final provider = context.read<FlashcardProvider>();
+    final currentRating = await provider.getTodayPerformanceRating(card.id!);
+    final rating = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Today\'s Performance'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('Fail'),
+              leading: Radio<int>(
+                value: 0,
+                groupValue: currentRating,
+                onChanged: (value) => Navigator.pop(ctx, value),
+              ),
+            ),
+            ListTile(
+              title: const Text('OK'),
+              leading: Radio<int>(
+                value: 1,
+                groupValue: currentRating,
+                onChanged: (value) => Navigator.pop(ctx, value),
+              ),
+            ),
+            ListTile(
+              title: const Text('Success'),
+              leading: Radio<int>(
+                value: 2,
+                groupValue: currentRating,
+                onChanged: (value) => Navigator.pop(ctx, value),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          if (currentRating != null)
+            TextButton(
+              onPressed: () async {
+                await provider.deleteTodayPerformance(card.id!);
+                Navigator.pop(ctx);
+              },
+              child: const Text('Delete'),
+            ),
+        ],
+      ),
+    );
+    if (rating != null) {
+      await provider.updateTodayPerformance(card.id!, rating);
+    }
   }
 }

@@ -33,15 +33,59 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flashcards',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: const ReviewScreen(),
-      routes: {
-        '/manage': (_) => const ManageScreen(),
-        '/heatmap': (_) => const HeatmapScreen(),
-        '/all': (_) => const CardListScreen(),
-      },
+    return ChangeNotifierProvider(
+      create: (_) => FlashcardProvider()..loadFlashcards(),
+      child: MaterialApp(
+        title: 'Task Flashcards',
+        theme: ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF4CAF50),
+            brightness: Brightness.light,
+            primary: const Color(0xFF4CAF50),
+            secondary: const Color(0xFF81C784),
+            tertiary: const Color(0xFFC8E6C9),
+            background: const Color(0xFFF1F8E9),
+          ),
+          cardTheme: CardTheme(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            color: Colors.white,
+          ),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF4CAF50),
+            foregroundColor: Colors.white,
+            elevation: 0,
+          ),
+          floatingActionButtonTheme: const FloatingActionButtonThemeData(
+            backgroundColor: Color(0xFF4CAF50),
+            foregroundColor: Colors.white,
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4CAF50),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF4CAF50),
+            ),
+          ),
+          scaffoldBackgroundColor: const Color(0xFFF1F8E9),
+        ),
+        home: const ReviewScreen(),
+        routes: {
+          '/manage': (_) => const ManageScreen(),
+          '/heatmap': (_) => const HeatmapScreen(),
+          '/all': (_) => const CardListScreen(),
+        },
+      ),
     );
   }
 }
