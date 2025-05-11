@@ -27,6 +27,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final cards = provider.todaysFlashcards;
     final theme = Theme.of(context);
 
+    print('ReviewScreen: ${cards.length} cards to review');
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Review'),
@@ -40,11 +42,6 @@ class _ReviewScreenState extends State<ReviewScreen> {
             icon: const Icon(Icons.calendar_month),
             onPressed: () => Navigator.pushNamed(context, '/heatmap'),
             tooltip: "View heatmap",
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () => Navigator.pushNamed(context, '/manage'),
-            tooltip: "Manage cards",
           ),
         ],
       ),
@@ -75,10 +72,14 @@ class _ReviewScreenState extends State<ReviewScreen> {
               padding: const EdgeInsets.all(16),
               allowedSwipeDirection: const AllowedSwipeDirection.all(),
               cardBuilder: (context, index, horizontalThresholdPercentage, verticalThresholdPercentage) {
-                if (index < 0 || index >= cards.length) return null;
+                if (index < 0 || index >= cards.length) {
+                  print('Invalid card index: $index (total cards: ${cards.length})');
+                  return null;
+                }
                 final card = cards[index];
                 final ema = provider.getEmaForCard(card.id!);
                 final cardColors = provider.getCardColor(ema);
+                print('Building card ${card.id} at index $index');
                 return Card(
                   color: cardColors.$1,
                   elevation: 4,
@@ -99,9 +100,14 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 );
               },
               onSwipe: (prev, curr, direction) {
-                if (cards.isEmpty || prev == null || prev < 0 || prev >= cards.length) return true;
+                if (cards.isEmpty || prev == null || prev < 0 || prev >= cards.length) {
+                  print('Invalid swipe: prev=$prev, curr=$curr, direction=$direction');
+                  return true;
+                }
                 final id = cards[prev].id;
                 if (id == null) return true;
+                
+                print('Swiping card $id in direction $direction');
                 
                 // Handle different swipe directions
                 switch (direction) {
@@ -144,13 +150,23 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     icon: Icons.skip_next,
                     label: 'Skip',
                     color: Colors.grey,
-                    onTap: () => provider.skipCard(cards.first.id!),
+                    onTap: () {
+                      if (cards.isNotEmpty) {
+                        print('Skipping card ${cards.first.id} from button');
+                        provider.skipCard(cards.first.id!);
+                      }
+                    },
                   ),
                   _RatingButton(
                     icon: Icons.check_circle,
                     label: 'Pass',
                     color: Colors.blue,
-                    onTap: () => _passCard(provider, cards.first.id!),
+                    onTap: () {
+                      if (cards.isNotEmpty) {
+                        print('Passing card ${cards.first.id} from button');
+                        _passCard(provider, cards.first.id!);
+                      }
+                    },
                   ),
                 ],
               ),

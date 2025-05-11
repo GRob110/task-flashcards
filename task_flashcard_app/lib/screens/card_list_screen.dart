@@ -123,13 +123,13 @@ class CardListScreen extends StatelessWidget {
     final text = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Add Card'),
+        title: const Text('Add New Task'),
         content: TextField(
           autofocus: true,
           controller: textController,
+          textCapitalization: TextCapitalization.words,
           decoration: const InputDecoration(
-            hintText: 'Enter card text',
-            border: OutlineInputBorder(),
+            hintText: 'Enter task description',
           ),
           onSubmitted: (value) => Navigator.pop(ctx, value),
         ),
@@ -139,7 +139,11 @@ class CardListScreen extends StatelessWidget {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, textController.text),
+            onPressed: () {
+              if (textController.text.isNotEmpty) {
+                Navigator.pop(ctx, textController.text);
+              }
+            },
             child: const Text('Add'),
           ),
         ],

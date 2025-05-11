@@ -97,14 +97,36 @@ class FlashcardProvider extends ChangeNotifier {
 
   /// Cards left to review: neither completed nor skipped today, sorted by worst avg first.
   List<Flashcard> get todaysFlashcards {
-    final remain = _flashcards.where((c) =>
-      !_completedToday.contains(c.id) &&
-      !_skippedToday.contains(c.id)
-    ).toList();
-    remain.sort((a, b) {
-      return getAdjustedEmaForCard(a.id!).compareTo(getAdjustedEmaForCard(b.id!));
-    });
-    return remain;
+    // First, get all cards that haven't been completed today
+    final uncompleted = _flashcards.where((c) => !_completedToday.contains(c.id)).toList();
+    
+    // If there are no uncompleted cards, return empty list
+    if (uncompleted.isEmpty) return [];
+    
+    // If there are skipped cards, they should come after all unskipped cards
+    final skipped = uncompleted.where((c) => _skippedToday.contains(c.id)).toList();
+    final unskipped = uncompleted.where((c) => !_skippedToday.contains(c.id)).toList();
+    
+    // If there are no unskipped cards left, reset the skipped cards list
+    if (unskipped.isEmpty && skipped.isNotEmpty) {
+      // Don't notify listeners here to avoid state updates during build
+      Future.microtask(() {
+        _skippedToday.clear();
+        notifyListeners();
+      });
+      // Now all cards are unskipped, so sort them by EMA
+      uncompleted.sort((a, b) => getAdjustedEmaForCard(a.id!).compareTo(getAdjustedEmaForCard(b.id!)));
+      return uncompleted;
+    }
+    
+    // Sort both lists by EMA
+    unskipped.sort((a, b) => getAdjustedEmaForCard(a.id!).compareTo(getAdjustedEmaForCard(b.id!)));
+    skipped.sort((a, b) => getAdjustedEmaForCard(a.id!).compareTo(getAdjustedEmaForCard(b.id!)));
+    
+    // Combine the lists, with unskipped cards first
+    final result = [...unskipped, ...skipped];
+    print('todaysFlashcards: ${result.length} cards (${unskipped.length} unskipped, ${skipped.length} skipped)');
+    return result;
   }
 
   /// Record a real rating (0,1,2), mark completed, recompute averages.
@@ -126,6 +148,7 @@ class FlashcardProvider extends ChangeNotifier {
 
   /// Skip a card (no DB write), so it won't reappear until you reload tomorrow.
   void skipCard(int cardId) {
+    print('Skipping card $cardId');
     _skippedToday.add(cardId);
     notifyListeners();
   }

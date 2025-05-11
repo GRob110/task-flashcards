@@ -35,7 +35,7 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => FlashcardProvider()..loadFlashcards(),
       child: MaterialApp(
-        title: 'Task Flashcards',
+        title: 'Flash Task',
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(

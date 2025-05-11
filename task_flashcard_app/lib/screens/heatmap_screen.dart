@@ -30,7 +30,10 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<FlashcardProvider>();
     final theme = Theme.of(context);
-    final cards = provider.flashcards;
+    // Sort cards by EMA (best performing first)
+    final cards = [...provider.flashcards]..sort((a, b) => 
+      provider.getEmaForCard(b.id!).compareTo(provider.getEmaForCard(a.id!))
+    );
 
     if (_loading) {
       return const Scaffold(

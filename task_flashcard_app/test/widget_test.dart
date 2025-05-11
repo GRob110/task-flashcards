@@ -7,24 +7,39 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:task_flashcard_app/main.dart';
+import 'package:provider/provider.dart';
+import 'package:flash_task/main.dart';
+import 'package:flash_task/providers/flashcard_provider.dart';
+import 'package:flash_task/services/db_service.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    // Initialize test database
+    await DBService.instance.db;
+  });
+
+  testWidgets('App should render main screen', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => FlashcardProvider()),
+        ],
+        child: const MyApp(),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Wait for the app to load
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Verify that the app title is displayed
+    expect(find.text('Flash Task'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify that the main navigation buttons are present
+    expect(find.byIcon(Icons.list), findsOneWidget); // Card list icon
+    expect(find.byIcon(Icons.calendar_today), findsOneWidget); // Heatmap icon
+    expect(find.byIcon(Icons.refresh), findsOneWidget); // Review icon
   });
 }
