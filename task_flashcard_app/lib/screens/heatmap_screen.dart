@@ -120,6 +120,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
                                 endDate: endDate,
                                 showColorTip: false,
                                 colorsets: const {
+                                  -1: Colors.blue,
                                   0: Colors.red,
                                   1: Colors.orange,
                                   2: Colors.green,

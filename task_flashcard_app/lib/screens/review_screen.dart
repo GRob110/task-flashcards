@@ -17,6 +17,10 @@ class _ReviewScreenState extends State<ReviewScreen> {
     provider.recordPerformance(cardId, rating);
   }
 
+  void _passCard(FlashcardProvider provider, int cardId) {
+    provider.passCard(cardId);
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<FlashcardProvider>();
@@ -69,13 +73,14 @@ class _ReviewScreenState extends State<ReviewScreen> {
               cardsCount: cards.length,
               numberOfCardsDisplayed: 1,
               padding: const EdgeInsets.all(16),
+              allowedSwipeDirection: const AllowedSwipeDirection.all(),
               cardBuilder: (context, index, horizontalThresholdPercentage, verticalThresholdPercentage) {
                 if (index < 0 || index >= cards.length) return null;
                 final card = cards[index];
                 final ema = provider.getEmaForCard(card.id!);
-                final cardColor = provider.getCardColor(ema);
+                final cardColors = provider.getCardColor(ema);
                 return Card(
-                  color: cardColor,
+                  color: cardColors.$1,
                   elevation: 4,
                   margin: const EdgeInsets.all(16),
                   child: Center(
@@ -84,7 +89,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                       child: Text(
                         card.text,
                         style: theme.textTheme.headlineMedium?.copyWith(
-                          color: Colors.white,
+                          color: cardColors.$2,
                           fontWeight: FontWeight.bold,
                         ),
                         textAlign: TextAlign.center,
@@ -94,19 +99,27 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 );
               },
               onSwipe: (prev, curr, direction) {
-                if (cards.isEmpty || prev < 0 || prev >= cards.length) return true;
+                if (cards.isEmpty || prev == null || prev < 0 || prev >= cards.length) return true;
                 final id = cards[prev].id;
                 if (id == null) return true;
-                int rating;
+                
+                // Handle different swipe directions
                 switch (direction) {
                   case CardSwiperDirection.left:
-                    rating = 0; break;
+                    provider.recordPerformance(id, 0); // Fail
+                    break;
                   case CardSwiperDirection.right:
-                    rating = 2; break;
+                    provider.recordPerformance(id, 2); // Success
+                    break;
+                  case CardSwiperDirection.top:
+                    provider.recordPerformance(id, 1); // OK
+                    break;
+                  case CardSwiperDirection.bottom:
+                    provider.skipCard(id); // Skip
+                    break;
                   default:
-                    rating = 1; break;
+                    provider.skipCard(id);
                 }
-                provider.recordPerformance(id, rating);
                 return true;
               },
             ),
@@ -128,22 +141,16 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _RatingButton(
-                    icon: Icons.close,
-                    label: 'Fail',
-                    color: Colors.red,
-                    onTap: () => _rateCard(provider, cards.first.id!, 0),
+                    icon: Icons.skip_next,
+                    label: 'Skip',
+                    color: Colors.grey,
+                    onTap: () => provider.skipCard(cards.first.id!),
                   ),
                   _RatingButton(
-                    icon: Icons.check,
-                    label: 'OK',
-                    color: Colors.orange,
-                    onTap: () => _rateCard(provider, cards.first.id!, 1),
-                  ),
-                  _RatingButton(
-                    icon: Icons.star,
-                    label: 'Success',
-                    color: Colors.green,
-                    onTap: () => _rateCard(provider, cards.first.id!, 2),
+                    icon: Icons.check_circle,
+                    label: 'Pass',
+                    color: Colors.blue,
+                    onTap: () => _passCard(provider, cards.first.id!),
                   ),
                 ],
               ),

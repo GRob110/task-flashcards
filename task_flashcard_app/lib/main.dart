@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'services/db_service.dart';
 import 'providers/flashcard_provider.dart';
 import 'screens/review_screen.dart';
-import 'screens/manage_screen.dart';
 import 'screens/heatmap_screen.dart';
 import 'screens/card_list_screen.dart';
 
@@ -81,7 +80,6 @@ class MyApp extends StatelessWidget {
         ),
         home: const ReviewScreen(),
         routes: {
-          '/manage': (_) => const ManageScreen(),
           '/heatmap': (_) => const HeatmapScreen(),
           '/all': (_) => const CardListScreen(),
         },

@@ -35,38 +35,46 @@ class FlashcardProvider extends ChangeNotifier {
       final history = await _db.getPerformances(card.id!, since: since);
       print('Card ${card.id}: history = \\${history.map((p) => p.rating).toList()}');
       if (history.isNotEmpty) {
-        // Simple average
-        final sum = history.fold<int>(0, (s, p) => s + p.rating);
-        _averageRating[card.id!] = sum / history.length;
-        // EMA (sorted by date, with decay for missing days)
-        final sortedHistory = [...history]..sort((a, b) => a.date.compareTo(b.date));
-        double? ema;
-        DateTime? prevDate;
-        for (var p in sortedHistory) {
-          if (ema == null) {
-            ema = p.rating.toDouble();
-          } else {
-            // Insert virtual fails for each missing day
-            final daysGap = p.date.difference(prevDate!).inDays;
-            for (int i = 1; i < daysGap; i++) {
-              ema = alpha * 0 + (1 - alpha) * (ema ?? 1.0); // Decay for missing day
+        // Filter out passes (-1) for average calculation
+        final validHistory = history.where((p) => p.rating >= 0);
+        if (validHistory.isNotEmpty) {
+          // Simple average (excluding passes)
+          final sum = validHistory.fold<int>(0, (s, p) => s + p.rating);
+          _averageRating[card.id!] = sum / validHistory.length;
+          
+          // EMA (sorted by date, with decay for missing days)
+          final sortedHistory = [...validHistory]..sort((a, b) => a.date.compareTo(b.date));
+          double? ema;
+          DateTime? prevDate;
+          for (var p in sortedHistory) {
+            if (ema == null) {
+              ema = p.rating.toDouble();
+            } else {
+              // Insert virtual fails for each missing day
+              final daysGap = p.date.difference(prevDate!).inDays;
+              for (int i = 1; i < daysGap; i++) {
+                ema = alpha * 0 + (1 - alpha) * (ema ?? 1.0); // Decay for missing day
+              }
+              ema = alpha * p.rating + (1 - alpha) * (ema ?? 1.0);
             }
-            ema = alpha * p.rating + (1 - alpha) * (ema ?? 1.0);
+            prevDate = DateTime(p.date.year, p.date.month, p.date.day);
           }
-          prevDate = DateTime(p.date.year, p.date.month, p.date.day);
-        }
-        // Decay for days since last performance until today
-        final today = DateTime.now();
-        if (prevDate != null) {
-          final daysSince = today.difference(prevDate).inDays;
-          for (int i = 1; i <= daysSince; i++) {
-            ema = alpha * 0 + (1 - alpha) * (ema ?? 1.0);
+          // Decay for days since last performance until today
+          final today = DateTime.now();
+          if (prevDate != null) {
+            final daysSince = today.difference(prevDate).inDays;
+            for (int i = 1; i <= daysSince; i++) {
+              ema = alpha * 0 + (1 - alpha) * (ema ?? 1.0);
+            }
           }
+          _emaRating[card.id!] = ema ?? 1.0;
+          print('Card ${card.id}: EMA = \\${_emaRating[card.id!]}');
+        } else {
+          _averageRating[card.id!] = 1.0;
+          _emaRating[card.id!] = 1.0;
         }
-        _emaRating[card.id!] = ema ?? 1.0;
-        print('Card ${card.id}: EMA = \\${_emaRating[card.id!]}');
       } else {
-        _averageRating[card.id!] = 1.0; // neutral
+        _averageRating[card.id!] = 1.0;
         _emaRating[card.id!] = 1.0;
         print('Card ${card.id}: No history, EMA = 1.0');
       }
@@ -105,6 +113,14 @@ class FlashcardProvider extends ChangeNotifier {
     await _db.recordPerformance(cardId, DateTime.now(), rating);
     _completedToday.add(cardId);
     await _computeAverages(windowDays: 30);
+    notifyListeners();
+  }
+
+  /// Pass a card (special rating that doesn't affect EMA)
+  Future<void> passCard(int cardId) async {
+    print('Passing card: cardId=$cardId');
+    await _db.recordPerformance(cardId, DateTime.now(), -1); // Use -1 for pass
+    _completedToday.add(cardId);
     notifyListeners();
   }
 
@@ -161,13 +177,24 @@ class FlashcardProvider extends ChangeNotifier {
   double getEmaForCard(int cardId) => _emaRating[cardId] ?? 1.0;
 
   /// Get a gradient color from red (0) to yellow (1) to green (2) based on EMA
-  Color getCardColor(double ema) {
+  /// Passes (-1) are shown in blue
+  /// Returns a tuple of (backgroundColor, textColor)
+  (Color, Color) getCardColor(double ema) {
+    if (ema == -1) {
+      return (Colors.blue, Colors.white);
+    }
     if (ema <= 1.0) {
       // Red to yellow
-      return Color.lerp(Colors.red, Colors.yellow, ema)!;
+      final bgColor = Color.lerp(Colors.red, Colors.yellow, ema)!;
+      // Use black text for yellow backgrounds, white for red
+      final textColor = ema > 0.5 ? Colors.black : Colors.white;
+      return (bgColor, textColor);
     } else {
       // Yellow to green
-      return Color.lerp(Colors.yellow, Colors.green, ema - 1)!;
+      final bgColor = Color.lerp(Colors.yellow, Colors.green, ema - 1)!;
+      // Use black text for yellow backgrounds, white for green
+      final textColor = ema < 1.5 ? Colors.black : Colors.white;
+      return (bgColor, textColor);
     }
   }
 
