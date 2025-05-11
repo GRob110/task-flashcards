@@ -1,7 +1,5 @@
-import 'package:flutter/foundation.dart';
 import '../models/flashcard.dart';
 import '../services/db_service.dart';
-import 'package:flutter/painting.dart';
 import 'package:flutter/material.dart';
 
 class FlashcardProvider extends ChangeNotifier {

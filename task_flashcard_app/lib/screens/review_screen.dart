@@ -94,7 +94,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 );
               },
               onSwipe: (prev, curr, direction) {
-                if (cards.isEmpty || prev == null || prev < 0 || prev >= cards.length) return true;
+                if (cards.isEmpty || prev < 0 || prev >= cards.length) return true;
                 final id = cards[prev].id;
                 if (id == null) return true;
                 int rating;
