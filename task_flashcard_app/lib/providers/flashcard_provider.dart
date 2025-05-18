@@ -31,12 +31,31 @@ class FlashcardProvider extends ChangeNotifier {
     _emaRating.clear();
     final since = DateTime.now().subtract(Duration(days: windowDays));
     const double alpha = 0.5; // Smoothing factor for EMA (0.5 = recent counts more)
+    
+    // Get today's date at midnight for comparison
+    final today = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+    
     for (var card in _flashcards) {
       final history = await _db.getPerformances(card.id!, since: since);
       print('Card ${card.id}: history = \\${history.map((p) => p.rating).toList()}');
-      if (history.isNotEmpty) {
-        // Filter out passes (-1) for average calculation
-        final validHistory = history.where((p) => p.rating >= 0);
+      
+      // Split history into today and before today
+      final todayPerformance = history.where((p) => 
+        DateTime(p.date.year, p.date.month, p.date.day).isAtSameMomentAs(today)
+      ).toList();
+      
+      final historyExcludingToday = history.where((p) => 
+        DateTime(p.date.year, p.date.month, p.date.day).isBefore(today)
+      ).toList();
+      
+      // Calculate EMA based on historical data first
+      double? ema;
+      if (historyExcludingToday.isNotEmpty) {
+        final validHistory = historyExcludingToday.where((p) => p.rating >= 0);
         if (validHistory.isNotEmpty) {
           // Simple average (excluding passes)
           final sum = validHistory.fold<int>(0, (s, p) => s + p.rating);
@@ -44,7 +63,6 @@ class FlashcardProvider extends ChangeNotifier {
           
           // EMA (sorted by date, with decay for missing days)
           final sortedHistory = [...validHistory]..sort((a, b) => a.date.compareTo(b.date));
-          double? ema;
           DateTime? prevDate;
           for (var p in sortedHistory) {
             if (ema == null) {
@@ -53,31 +71,39 @@ class FlashcardProvider extends ChangeNotifier {
               // Insert virtual fails for each missing day
               final daysGap = p.date.difference(prevDate!).inDays;
               for (int i = 1; i < daysGap; i++) {
-                ema = alpha * 0 + (1 - alpha) * (ema ?? 1.0); // Decay for missing day
+                ema = alpha * 0 + (1 - alpha) * (ema ?? 0.0); // Decay for missing day
               }
-              ema = alpha * p.rating + (1 - alpha) * (ema ?? 1.0);
+              ema = alpha * p.rating + (1 - alpha) * (ema ?? 0.0);
             }
             prevDate = DateTime(p.date.year, p.date.month, p.date.day);
           }
-          // Decay for days since last performance until today
-          final today = DateTime.now();
+          // Decay until today
           if (prevDate != null) {
             final daysSince = today.difference(prevDate).inDays;
             for (int i = 1; i <= daysSince; i++) {
-              ema = alpha * 0 + (1 - alpha) * (ema ?? 1.0);
+              ema = alpha * 0 + (1 - alpha) * (ema ?? 0.0);
             }
           }
-          _emaRating[card.id!] = ema ?? 1.0;
-          print('Card ${card.id}: EMA = \\${_emaRating[card.id!]}');
         } else {
-          _averageRating[card.id!] = 1.0;
-          _emaRating[card.id!] = 1.0;
+          _averageRating[card.id!] = 0.0;
+          ema = 0.0;
         }
       } else {
-        _averageRating[card.id!] = 1.0;
-        _emaRating[card.id!] = 1.0;
-        print('Card ${card.id}: No history, EMA = 1.0');
+        // No history - start with failing EMA
+        _averageRating[card.id!] = 0.0;
+        ema = 0.0;
       }
+      
+      // If there's a performance today, apply it to the EMA
+      if (todayPerformance.isNotEmpty) {
+        final todayRating = todayPerformance.first.rating;
+        if (todayRating >= 0) { // Only apply if it's not a pass (-1)
+          ema = alpha * todayRating + (1 - alpha) * (ema ?? 0.0);
+        }
+      }
+      
+      _emaRating[card.id!] = ema ?? 0.0;
+      print('Card ${card.id}: EMA = \\${_emaRating[card.id!]}');
     }
   }
 
