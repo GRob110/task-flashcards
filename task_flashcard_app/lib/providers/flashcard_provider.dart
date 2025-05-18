@@ -11,17 +11,21 @@ class FlashcardProvider extends ChangeNotifier {
   // rolling average rating per card
   final Map<int, double> _averageRating = {};
   final Map<int, double> _emaRating = {};
-  // track which cards have been completed or skipped today
+  // track which cards have been completed today
   final Set<int> _completedToday = {};
   Set<int> get completedToday => _completedToday;
-  final Set<int> _skippedToday   = {};
+  
+  // Current order of cards for review
+  List<Flashcard> _currentOrder = [];
+  // Track the last day we reset the order
+  DateTime? _lastResetDay;
 
   /// Call this on app start (or pull-to-refresh) to load everything.
   Future<void> loadFlashcards({int windowDays = 30}) async {
     _flashcards = await _db.getFlashcards();
     await _computeAverages(windowDays: windowDays);
     await _loadTodayCompleted();
-    _skippedToday.clear();
+    _resetCardOrder();
     notifyListeners();
   }
 
@@ -121,38 +125,45 @@ class FlashcardProvider extends ChangeNotifier {
     }
   }
 
-  /// Cards left to review: neither completed nor skipped today, sorted by worst avg first.
-  List<Flashcard> get todaysFlashcards {
-    // First, get all cards that haven't been completed today
+  /// Reset the card order based on EMA
+  void _resetCardOrder() {
+    // Get all uncompleted cards
     final uncompleted = _flashcards.where((c) => !_completedToday.contains(c.id)).toList();
-    
-    // If there are no uncompleted cards, return empty list
-    if (uncompleted.isEmpty) return [];
-    
-    // If there are skipped cards, they should come after all unskipped cards
-    final skipped = uncompleted.where((c) => _skippedToday.contains(c.id)).toList();
-    final unskipped = uncompleted.where((c) => !_skippedToday.contains(c.id)).toList();
-    
-    // If there are no unskipped cards left, reset the skipped cards list
-    if (unskipped.isEmpty && skipped.isNotEmpty) {
-      // Don't notify listeners here to avoid state updates during build
-      Future.microtask(() {
-        _skippedToday.clear();
-        notifyListeners();
-      });
-      // Now all cards are unskipped, so sort them by EMA
-      uncompleted.sort((a, b) => getAdjustedEmaForCard(a.id!).compareTo(getAdjustedEmaForCard(b.id!)));
-      return uncompleted;
+    // Sort by EMA
+    uncompleted.sort((a, b) => getAdjustedEmaForCard(a.id!).compareTo(getAdjustedEmaForCard(b.id!)));
+    _currentOrder = uncompleted;
+    _lastResetDay = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+  }
+
+  /// Check if we need to reset the order for a new day
+  void _checkAndResetForNewDay() {
+    final today = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+    if (_lastResetDay == null || !_lastResetDay!.isAtSameMomentAs(today)) {
+      _resetCardOrder();
     }
-    
-    // Sort both lists by EMA
-    unskipped.sort((a, b) => getAdjustedEmaForCard(a.id!).compareTo(getAdjustedEmaForCard(b.id!)));
-    skipped.sort((a, b) => getAdjustedEmaForCard(a.id!).compareTo(getAdjustedEmaForCard(b.id!)));
-    
-    // Combine the lists, with unskipped cards first
-    final result = [...unskipped, ...skipped];
-    print('todaysFlashcards: ${result.length} cards (${unskipped.length} unskipped, ${skipped.length} skipped)');
-    return result;
+  }
+
+  /// Cards left to review in their current order
+  List<Flashcard> get todaysFlashcards {
+    _checkAndResetForNewDay();
+    return _currentOrder;
+  }
+
+  /// Skip a card (move to end of current list)
+  void skipCard(int cardId) {
+    print('Skipping card $cardId');
+    final card = _currentOrder.firstWhere((c) => c.id == cardId);
+    _currentOrder.remove(card);
+    _currentOrder.add(card);
+    notifyListeners();
   }
 
   /// Record a real rating (0,1,2), mark completed, recompute averages.
@@ -160,6 +171,8 @@ class FlashcardProvider extends ChangeNotifier {
     print('Recording performance: cardId=$cardId, rating=$rating');
     await _db.recordPerformance(cardId, DateTime.now(), rating);
     _completedToday.add(cardId);
+    // Remove the card from current order
+    _currentOrder.removeWhere((c) => c.id == cardId);
     await _computeAverages(windowDays: 30);
     notifyListeners();
   }
@@ -169,13 +182,8 @@ class FlashcardProvider extends ChangeNotifier {
     print('Passing card: cardId=$cardId');
     await _db.recordPerformance(cardId, DateTime.now(), -1); // Use -1 for pass
     _completedToday.add(cardId);
-    notifyListeners();
-  }
-
-  /// Skip a card (no DB write), so it won't reappear until you reload tomorrow.
-  void skipCard(int cardId) {
-    print('Skipping card $cardId');
-    _skippedToday.add(cardId);
+    // Remove the card from current order
+    _currentOrder.removeWhere((c) => c.id == cardId);
     notifyListeners();
   }
 
@@ -212,6 +220,12 @@ class FlashcardProvider extends ChangeNotifier {
   /// Delete today's performance for a card
   Future<void> deleteTodayPerformance(int cardId) async {
     await _db.deleteTodayPerformance(cardId);
+    _completedToday.remove(cardId);
+    // Add the card back to the end of the current order
+    final card = _flashcards.firstWhere((c) => c.id == cardId);
+    if (!_currentOrder.contains(card)) {
+      _currentOrder.add(card);
+    }
     await loadFlashcards();
     notifyListeners();
   }

@@ -1,11 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:auto_size_text/auto_size_text.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import '../models/flashcard.dart';
 import '../providers/flashcard_provider.dart';
 
 class CardListScreen extends StatelessWidget {
   const CardListScreen({super.key});
+
+  Future<void> _exportToCsv(BuildContext context) async {
+    final provider = context.read<FlashcardProvider>();
+    final cards = provider.sortedFlashcards;
+    
+    // Create CSV content
+    final csvContent = StringBuffer();
+    csvContent.writeln('Card ID,Text,EMA');
+    
+    for (var card in cards) {
+      final ema = provider.getEmaForCard(card.id!);
+      csvContent.writeln('${card.id},"${card.text}",$ema');
+    }
+    
+    // Get the downloads directory
+    final directory = await getDownloadsDirectory();
+    if (directory == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not access downloads directory')),
+        );
+      }
+      return;
+    }
+    
+    // Create the file
+    final file = File('${directory.path}/flashcards_export.csv');
+    await file.writeAsString(csvContent.toString());
+    
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Exported to ${file.path}')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,6 +54,11 @@ class CardListScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('All Cards'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.download),
+            onPressed: () => _exportToCsv(context),
+            tooltip: "Export to CSV",
+          ),
           IconButton(
             icon: const Icon(Icons.calendar_month),
             onPressed: () => Navigator.pushNamed(context, '/heatmap'),
