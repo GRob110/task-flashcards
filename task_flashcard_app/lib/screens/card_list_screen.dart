@@ -259,7 +259,6 @@ class CardListScreen extends StatelessWidget {
   Future<void> _editTodayPerformance(BuildContext context, Flashcard card) async {
     final provider = context.read<FlashcardProvider>();
     final currentRating = await provider.getTodayPerformanceRating(card.id!);
-    print('Current rating for card ${card.id}: $currentRating');
     
     if (currentRating != null) {
       final shouldDelete = await showDialog<bool>(
@@ -284,7 +283,6 @@ class CardListScreen extends StatelessWidget {
       );
       
       if (shouldDelete == true) {
-        print('Deleting current rating for card ${card.id}');
         await provider.deleteTodayPerformance(card.id!);
       }
       return;
@@ -305,7 +303,6 @@ class CardListScreen extends StatelessWidget {
                   value: -1,
                   groupValue: selectedRating,
                   onChanged: (value) {
-                    print('Selected rating: $value');
                     setState(() => selectedRating = value);
                   },
                 ),
@@ -316,7 +313,6 @@ class CardListScreen extends StatelessWidget {
                   value: 0,
                   groupValue: selectedRating,
                   onChanged: (value) {
-                    print('Selected rating: $value');
                     setState(() => selectedRating = value);
                   },
                 ),
@@ -327,7 +323,6 @@ class CardListScreen extends StatelessWidget {
                   value: 1,
                   groupValue: selectedRating,
                   onChanged: (value) {
-                    print('Selected rating: $value');
                     setState(() => selectedRating = value);
                   },
                 ),
@@ -338,7 +333,6 @@ class CardListScreen extends StatelessWidget {
                   value: 2,
                   groupValue: selectedRating,
                   onChanged: (value) {
-                    print('Selected rating: $value');
                     setState(() => selectedRating = value);
                   },
                 ),
@@ -347,28 +341,21 @@ class CardListScreen extends StatelessWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                print('Cancelled rating selection');
-                Navigator.pop(ctx);
-              },
+              onPressed: () => Navigator.pop(ctx),
               child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: selectedRating == null 
                 ? null 
-                : () {
-                    print('Saving rating: $selectedRating');
-                    Navigator.pop(ctx, selectedRating);
-                  },
+                : () => Navigator.pop(ctx, selectedRating),
               child: const Text('Save'),
             ),
           ],
         ),
       ),
     );
-    print('Dialog returned rating: $rating');
+    
     if (rating != null) {
-      print('Updating performance for card ${card.id} with rating $rating');
       await provider.updateTodayPerformance(card.id!, rating);
     }
   }

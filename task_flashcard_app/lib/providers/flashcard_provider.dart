@@ -45,7 +45,6 @@ class FlashcardProvider extends ChangeNotifier {
     
     for (var card in _flashcards) {
       final history = await _db.getPerformances(card.id!, since: since);
-      print('Card ${card.id}: history = \\${history.map((p) => p.rating).toList()}');
       
       // Split history into today and before today
       final todayPerformance = history.where((p) => 
@@ -107,7 +106,6 @@ class FlashcardProvider extends ChangeNotifier {
       }
       
       _emaRating[card.id!] = ema ?? 0.0;
-      print('Card ${card.id}: EMA = \\${_emaRating[card.id!]}');
     }
   }
 
@@ -159,7 +157,6 @@ class FlashcardProvider extends ChangeNotifier {
 
   /// Skip a card (move to end of current list)
   void skipCard(int cardId) {
-    print('Skipping card $cardId');
     final card = _currentOrder.firstWhere((c) => c.id == cardId);
     _currentOrder.remove(card);
     _currentOrder.add(card);
@@ -168,7 +165,6 @@ class FlashcardProvider extends ChangeNotifier {
 
   /// Record a real rating (0,1,2), mark completed, recompute averages.
   Future<void> recordPerformance(int cardId, int rating) async {
-    print('Recording performance: cardId=$cardId, rating=$rating');
     await _db.recordPerformance(cardId, DateTime.now(), rating);
     _completedToday.add(cardId);
     // Remove the card from current order
@@ -179,7 +175,6 @@ class FlashcardProvider extends ChangeNotifier {
 
   /// Pass a card (special rating that doesn't affect EMA)
   Future<void> passCard(int cardId) async {
-    print('Passing card: cardId=$cardId');
     await _db.recordPerformance(cardId, DateTime.now(), -1); // Use -1 for pass
     _completedToday.add(cardId);
     // Remove the card from current order
@@ -205,9 +200,7 @@ class FlashcardProvider extends ChangeNotifier {
   Future<Map<DateTime,int>> getYearlyData(int cardId) async {
     final since = DateTime.now().subtract(const Duration(days: 365));
     final list = await _db.getPerformances(cardId, since: since);
-    final map = { for (var p in list) DateTime(p.date.year, p.date.month, p.date.day): p.rating };
-    print('Heatmap for card $cardId: $map');
-    return map;
+    return { for (var p in list) DateTime(p.date.year, p.date.month, p.date.day): p.rating };
   }
 
   /// Update today's performance for a card
