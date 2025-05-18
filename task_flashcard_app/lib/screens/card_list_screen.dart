@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 import '../models/flashcard.dart';
 import '../providers/flashcard_provider.dart';
 
@@ -74,13 +75,15 @@ class CardListScreen extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Center(
-                              child: Text(
+                              child: AutoSizeText(
                                 c.text,
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.titleLarge?.copyWith(
                                   color: cardColors.$2,
                                   fontWeight: FontWeight.bold,
                                 ),
+                                minFontSize: 10,
+                                maxLines: 4,
                               ),
                             ),
                           ),
@@ -214,6 +217,7 @@ class CardListScreen extends StatelessWidget {
   Future<void> _editTodayPerformance(BuildContext context, Flashcard card) async {
     final provider = context.read<FlashcardProvider>();
     final currentRating = await provider.getTodayPerformanceRating(card.id!);
+    print('Current rating for card ${card.id}: $currentRating');
     
     if (currentRating != null) {
       final shouldDelete = await showDialog<bool>(
@@ -238,61 +242,91 @@ class CardListScreen extends StatelessWidget {
       );
       
       if (shouldDelete == true) {
+        print('Deleting current rating for card ${card.id}');
         await provider.deleteTodayPerformance(card.id!);
       }
       return;
     }
 
+    int? selectedRating;
     final rating = await showDialog<int>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Today\'s Performance'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('Pass'),
-              leading: Radio<int>(
-                value: -1,
-                groupValue: currentRating,
-                onChanged: (value) => Navigator.pop(ctx, value),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Edit Today\'s Performance'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Pass'),
+                leading: Radio<int>(
+                  value: -1,
+                  groupValue: selectedRating,
+                  onChanged: (value) {
+                    print('Selected rating: $value');
+                    setState(() => selectedRating = value);
+                  },
+                ),
               ),
+              ListTile(
+                title: const Text('Fail'),
+                leading: Radio<int>(
+                  value: 0,
+                  groupValue: selectedRating,
+                  onChanged: (value) {
+                    print('Selected rating: $value');
+                    setState(() => selectedRating = value);
+                  },
+                ),
+              ),
+              ListTile(
+                title: const Text('OK'),
+                leading: Radio<int>(
+                  value: 1,
+                  groupValue: selectedRating,
+                  onChanged: (value) {
+                    print('Selected rating: $value');
+                    setState(() => selectedRating = value);
+                  },
+                ),
+              ),
+              ListTile(
+                title: const Text('Success'),
+                leading: Radio<int>(
+                  value: 2,
+                  groupValue: selectedRating,
+                  onChanged: (value) {
+                    print('Selected rating: $value');
+                    setState(() => selectedRating = value);
+                  },
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                print('Cancelled rating selection');
+                Navigator.pop(ctx);
+              },
+              child: const Text('Cancel'),
             ),
-            ListTile(
-              title: const Text('Fail'),
-              leading: Radio<int>(
-                value: 0,
-                groupValue: currentRating,
-                onChanged: (value) => Navigator.pop(ctx, value),
-              ),
-            ),
-            ListTile(
-              title: const Text('OK'),
-              leading: Radio<int>(
-                value: 1,
-                groupValue: currentRating,
-                onChanged: (value) => Navigator.pop(ctx, value),
-              ),
-            ),
-            ListTile(
-              title: const Text('Success'),
-              leading: Radio<int>(
-                value: 2,
-                groupValue: currentRating,
-                onChanged: (value) => Navigator.pop(ctx, value),
-              ),
+            TextButton(
+              onPressed: selectedRating == null 
+                ? null 
+                : () {
+                    print('Saving rating: $selectedRating');
+                    Navigator.pop(ctx, selectedRating);
+                  },
+              child: const Text('Save'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-        ],
       ),
     );
+    print('Dialog returned rating: $rating');
     if (rating != null) {
+      print('Updating performance for card ${card.id} with rating $rating');
       await provider.updateTodayPerformance(card.id!, rating);
     }
   }

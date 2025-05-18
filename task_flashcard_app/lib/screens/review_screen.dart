@@ -132,7 +132,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       bottomNavigationBar: cards.isEmpty
           ? null
           : Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
               decoration: BoxDecoration(
                 color: theme.scaffoldBackgroundColor,
                 boxShadow: [

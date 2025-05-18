@@ -112,6 +112,12 @@ class DBService {
         where: 'id = ?',
         whereArgs: [id],
       );
+    } else {
+      // If no performance exists for today, create a new one
+      await database.insert(
+        'performance',
+        {'cardId': cardId, 'date': today.toIso8601String(), 'rating': newRating},
+      );
     }
   }
 
