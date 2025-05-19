@@ -59,6 +59,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final provider = context.watch<FlashcardProvider>();
     final theme = Theme.of(context);
 
+    // If we have no cards, trigger a refresh to check for new day
+    if (_currentCards.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _currentCards = provider.todaysFlashcards;
+        });
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Review'),

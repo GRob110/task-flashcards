@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/flashcard.dart';
 import '../providers/flashcard_provider.dart';
 
@@ -22,25 +23,29 @@ class CardListScreen extends StatelessWidget {
       csvContent.writeln('${card.id},"${card.text}",$ema');
     }
     
-    // Get the downloads directory
-    final directory = await getDownloadsDirectory();
-    if (directory == null) {
+    try {
+      // Get the app's documents directory
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/flashcards_export.csv');
+      await file.writeAsString(csvContent.toString());
+      
+      // Share the file
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'Flashcards Export',
+      );
+      
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not access downloads directory')),
+          const SnackBar(content: Text('Export ready to share')),
         );
       }
-      return;
-    }
-    
-    // Create the file
-    final file = File('${directory.path}/flashcards_export.csv');
-    await file.writeAsString(csvContent.toString());
-    
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Exported to ${file.path}')),
-      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error exporting: $e')),
+        );
+      }
     }
   }
 
