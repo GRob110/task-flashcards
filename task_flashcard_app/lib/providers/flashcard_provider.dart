@@ -34,7 +34,8 @@ class FlashcardProvider extends ChangeNotifier {
     _averageRating.clear();
     _emaRating.clear();
     final since = DateTime.now().subtract(Duration(days: windowDays));
-    const double alpha = 0.5; // Smoothing factor for EMA (0.5 = recent counts more)
+    const double alpha = 0.15; // Set to reach middle (1.0) in 7 days with perfect ratings
+    const double decayFactor = 0.9; // Set to decay from perfect to middle in 7 days
     
     // Get today's date at midnight for comparison
     final today = DateTime(
@@ -74,17 +75,18 @@ class FlashcardProvider extends ChangeNotifier {
               // Insert virtual fails for each missing day
               final daysGap = p.date.difference(prevDate!).inDays;
               for (int i = 1; i < daysGap; i++) {
-                ema = alpha * 0 + (1 - alpha) * (ema ?? 0.0); // Decay for missing day
+                ema = decayFactor * (ema ?? 0.0); // Gentler decay for missing days
               }
               ema = alpha * p.rating + (1 - alpha) * (ema ?? 0.0);
             }
             prevDate = DateTime(p.date.year, p.date.month, p.date.day);
           }
-          // Decay until today
+          // Decay until today, but only for the last 30 days
           if (prevDate != null) {
             final daysSince = today.difference(prevDate).inDays;
-            for (int i = 1; i <= daysSince; i++) {
-              ema = alpha * 0 + (1 - alpha) * (ema ?? 0.0);
+            final daysToDecay = daysSince.clamp(0, windowDays);
+            for (int i = 1; i <= daysToDecay; i++) {
+              ema = decayFactor * (ema ?? 0.0); // Gentler decay for missing days
             }
           }
         } else {
